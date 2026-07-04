@@ -4,7 +4,7 @@
 
 Pipeline Python modulaire de notation interne (IRB-A) et de provisionnement IFRS 9, construit à partir du jeu de données German Credit Data, retraité pour simuler un cycle de vie de crédit réaliste (chronologie, périmètre Retail/PME, coûts de recouvrement, tests de stress).
 
-Ce projet fait suite à un entretien technique risque de crédit : il corrige les points explicitement soulevés (absence de PD Long Run Average, MoC A/B/C non conformes à l'EBA GL/2017/16, fenêtre de performance à l'octroi trop restrictive) et refond le script initial monolithique en pipeline modulaire, chronologique et documenté.
+Ce projet reconstruit un premier script de notation en un pipeline modulaire, chronologique et documenté : calibration de la PD en Long Run Average sur un panel d'observations multi-années, Marge de Conservatisme conforme à l'EBA GL/2017/16 (catégories A/B/C), et fenêtre de performance à 12 mois évaluée à chaque anniversaire du crédit plutôt qu'une seule fois à l'octroi.
 
 ## Structure
 
