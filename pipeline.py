@@ -22,7 +22,7 @@ cycle de vie d'un credit :
    13. modelValidation                    -> Train/OOT, AUC, Gini, VIF
    14. reporting                        -> export Excel multi-onglets
 
-Aucune dependance a la librairie `logging` : la tracabilite d'execution
+la tracabilite d'execution
 passe par des impressions structurees (print), a l'image du script d'origine.
 """
 
@@ -51,10 +51,10 @@ from src import reporting
 
 
 def runFullPipeline():
-    print("=" * 80)
+    print("$" * 15)
     print("PROJET RISQUE DE CREDIT - IRB-A / IFRS9 / CRR2-CRR3")
     print("Auteur : Rodrigue KOFFI")
-    print("=" * 80)
+   
 
     config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     config.DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
@@ -84,9 +84,9 @@ def runFullPipeline():
         discriminationResults, vifTable,
     )
 
-    print("\n" + "=" * 80)
+    print("\n" + "$" * 15)
     print("FIN DU PIPELINE")
-    print("=" * 80)
+    print("$" * 15)
     return portfolioFrame
 
 
