@@ -47,13 +47,6 @@ python pipeline.py
 
 Le classeur `output/Credit_Risk_IRB_IFRS9_sortie.xlsx` est généré avec les onglets : données obligors, synthèse par grade, décomposition MoC, synthèse staging IFRS 9, synthèse par périmètre, série annuelle de défaut (LRA), panel brut d'observations LRA, résultats des tests de stress par scénario, résultat du stress test inverse, validation AUC/Gini Train/OOT, VIF des variables de segmentation.
 
-## Conventions du projet
-
-- **Nommage** : camelCase explicite partout (`riskGradeClass`, `pdFinalRegulatory`...), aucune notation générique type `x_train`/`y_t`.
-- **Pas de `logging` Python** : traçabilité d'exécution via des impressions structurées (`print`), module par module.
-- **Aucune simplification volontaire** : formule de Bâle complète (corrélation, ajustement de maturité), LGD par méthode workout, PD calibrée en Long Run Average + MoC A/B/C sur un panel d'observations multi-années, stress test inverse résolu numériquement, validation statistique (Train/OOT, AUC, Gini, VIF).
-- Le détail méthodologique complet (formules, articles réglementaires, limites assumées) est dans `docs/METHODOLOGY.md`.
-
 ## Avertissement
 
-Les dates, le périmètre PME/Corporate, les revenus et les flux de recouvrement sont **simulés** : le jeu de données source ne contient aucune de ces informations. Voir `docs/METHODOLOGY.md` (section 0 et section 12) pour le détail des hypothèses et des limites assumées, notamment le pouvoir discriminant du modèle (AUC/Gini, section 11).
+Certaines données (dates, périmètre PME/Corporate, revenus, flux de recouvrement) sont **simulées** : le jeu de données source ne les contient pas. Détail dans `docs/METHODOLOGY.md`.
