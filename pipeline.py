@@ -23,7 +23,7 @@ cycle de vie d'un credit :
    14. reporting                        -> export Excel multi-onglets
 
 la tracabilite d'execution
-passe par des impressions structurees (print), a l'image du script d'origine.
+passe par des impressions structurees (print)
 """
 
 import sys
