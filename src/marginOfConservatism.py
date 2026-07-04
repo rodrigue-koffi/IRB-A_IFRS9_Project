@@ -1,8 +1,8 @@
 """
 marginOfConservatism.py
 ========================
-Etape 7 : Marge de Conservatisme (MoC), second point souleve
-lors de l'entretien technique ("vous n'avez pas utilise les MoC A, B, C").
+Etape 7 : Marge de Conservatisme (MoC) decomposee en categories A, B, C
+conformement a l'EBA GL/2017/16.
 
  Selon l'EBA GL/2017/16 (par. 41-52), la marge de conservatisme est un ADD-ON
 ADDITIF applique a la PD Long Run Average pour couvrir les sources

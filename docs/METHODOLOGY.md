@@ -7,7 +7,7 @@
 
 ## 0. Pourquoi ce document existe
 
-Ce mémo répond directement aux remarques formulées lors de l'entretien technique :
+Ce mémo documente deux points méthodologiques centraux du pipeline :
 
 1. **La PD n'utilisait pas de Long Run Average (LRA).**
 2. **La Marge de Conservatisme (MoC) n'était pas construite selon les catégories A / B / C.**
@@ -122,7 +122,7 @@ Un indicateur diagnostique `firstYearDefaultFlag` (défaut dans la 1ère année 
 
 ## 4. PD Long Run Average — EBA GL/2017/16 (§88-94), CRR Art. 180
 
-**Point n°1 de l'entretien.** La LRA n'est pas le taux de défaut du dernier échantillon disponible, mais la **moyenne des taux de défaut annuels** :
+**Point clé n°1.** La LRA n'est pas le taux de défaut du dernier échantillon disponible, mais la **moyenne des taux de défaut annuels** :
 
 ```
 PD_LRA(grade) = moyenne_années( tauxDéfautAnnuel(grade, année) )   pour année ∈ [2010, 2023]
@@ -136,7 +136,7 @@ où `tauxDéfautAnnuel(grade, année)` provient du **panel d'observations annuel
 
 ## 5. Marge de Conservatisme (MoC A / B / C) — EBA GL/2017/16 (§41-52), CRR Art. 179(1)(f)
 
-**Point n°2 de l'entretien.** La MoC est un **add-on additif** appliqué à la LRA :
+**Point clé n°2.** La MoC est un **add-on additif** appliqué à la LRA :
 
 ```
 PD_finale = PD_LRA + MoC_A + MoC_B + MoC_C
