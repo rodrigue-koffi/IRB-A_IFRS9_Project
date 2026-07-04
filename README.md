@@ -4,7 +4,7 @@
 
 Pipeline Python modulaire de notation interne (IRB-A) et de provisionnement IFRS 9, construit à partir du jeu de données German Credit Data, retraité pour simuler un cycle de vie de crédit réaliste (chronologie, périmètre Retail/PME, coûts de recouvrement, tests de stress).
 
-Ce projet reconstruit un premier script de notation en un pipeline modulaire, chronologique et documenté : calibration de la PD en Long Run Average sur un panel d'observations multi-années, Marge de Conservatisme conforme à l'EBA GL/2017/16 (catégories A/B/C), et fenêtre de performance à 12 mois évaluée à chaque anniversaire du crédit plutôt qu'une seule fois à l'octroi.
+
 
 ## Structure
 
@@ -47,6 +47,10 @@ python pipeline.py
 
 Le classeur `output/Credit_Risk_IRB_IFRS9_sortie.xlsx` est généré avec les onglets : données obligors, synthèse par grade, décomposition MoC, synthèse staging IFRS 9, synthèse par périmètre, série annuelle de défaut (LRA), panel brut d'observations LRA, résultats des tests de stress par scénario, résultat du stress test inverse, validation AUC/Gini Train/OOT, VIF des variables de segmentation.
 
-## Avertissement
+## Conventions du projet
 
-Certaines données (dates, périmètre PME/Corporate, revenus, flux de recouvrement) sont **simulées** : le jeu de données source ne les contient pas. Détail dans `docs/METHODOLOGY.md`.
+- Le détail méthodologique complet (formules, articles réglementaires, limites assumées) est dans `docs/METHODOLOGY.md`.
+
+## Warnings
+
+Les dates, le périmètre PME/Corporate, les revenus et les flux de recouvrement sont **simulés** : le jeu de données source ne contient aucune de ces informations. Voir `docs/METHODOLOGY.md` (section 0 et section 12) pour le détail des hypothèses et des limites assumées, notamment le pouvoir discriminant du modèle (AUC/Gini, section 11).
