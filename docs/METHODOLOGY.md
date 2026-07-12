@@ -15,7 +15,7 @@ Ce mémo documente les points méthodologiques centraux du pipeline, en particul
 
 Il documente, module par module, les formules utilisées, leur justification économique, et les articles réglementaires correspondants (CRR — Règlement UE 575/2013 tel que modifié par CRR2/CRR3, CRD IV/V, EBA Guidelines, IFRS 9), ainsi que les techniques statistiques/actuarielles classiques mobilisées (algorithme de Belson, théorie de la crédibilité de Bühlmann) qui ne sont pas d'origine réglementaire mais relèvent de bonnes pratiques de modélisation statistique.
 
-**Avertissement de portée** : le jeu de données source (German Credit Data, 1000 dossiers, 10 variables) ne contient ni date, ni segment PME, ni flux de recouvrement, ni revenu. Toutes les données temporelles, le périmètre PME/Corporate, les revenus, les flux de recouvrement et les coûts de gestion du contentieux sont **simulés** pour permettre un pipeline méthodologiquement complet. Chaque donnée simulée est signalée dans le code (`src/*.py`) et ci-dessous.
+ le jeu de données source (German Credit Data, 1000 dossiers, 10 variables) ne contient ni date, ni segment PME, ni flux de recouvrement, ni revenu. Toutes les données temporelles, le périmètre PME/Corporate, les revenus, les flux de recouvrement et les coûts de gestion du contentieux sont **simulés** pour permettre un pipeline méthodologiquement complet. Chaque donnée simulée est signalée dans le code (`src/*.py`) et ci-dessous.
 
 ---
 
@@ -146,9 +146,9 @@ L'Art. 170 CRR exige une différenciation du risque fondée sur des caractérist
 | populationAisee | 145 | 3 644 EUR | 2,98 | 0,125 |
 | populationOutlierReview | 15 (1,5 %) | 1 455 EUR | 0,73 | **0,546** |
 
-Silhouette score (k=3, population cœur) = **0,456**. Les profils atypiques se distinguent nettement par un ratio d'endettement moyen presque 5 fois supérieur aux populations cœur — cohérent avec l'objectif de la détection DBSCAN (profils économiquement incohérents).
+core (k=3, population Cible) = **0,456**. Les profils atypiques se distinguent nettement par un ratio d'endettement moyen presque 5 fois supérieur aux populations cible, cohérent avec l'objectif de la détection DBSCAN (profils économiquement incohérents).
 
-> **Résultat de transparence** : une ANOVA (section 4) montre que `populationSegment` seul n'explique pas significativement `defaultEverFlag` sur ce portefeuille (F=0,60, p=0,55, η²=0,001). Ce n'est PAS l'objectif de cette étape — populationSegmentation.py ne construit rien à partir du défaut — mais cela doit être lu honnêtement : la segmentation de population sert la validité statistique de la calibration (section 5), pas à elle seule la discrimination du risque.
+> **Résultat ** : une ANOVA (section 4) montre que `populationSegment` seul n'explique pas significativement `defaultEverFlag` sur ce portefeuille (F=0,60, p=0,55, η²=0,001). Ce n'est PAS l'objectif de cette étape populationSegmentation.py ne construit rien à partir du défaut — mais cela doit être lu honnêtement : la segmentation de population sert la validité statistique de la calibration (section 5), pas à elle seule la discrimination du risque.
 
 ---
 
@@ -156,7 +156,7 @@ Silhouette score (k=3, population cœur) = **0,456**. Les profils atypiques se d
 
 ### Pourquoi remplacer le clustering non supervisé par une méthode supervisée
 
-La version précédente utilisait DBSCAN + KMeans (non supervisé, sur les variables de risque) pour construire les classes, puis les ordonnait a posteriori par taux de défaut observé. Cette méthode ne produisait qu'un pouvoir discriminant faible (Gini ≈ 0,04, cf. ancienne section 11). L'algorithme de Belson (D.J. Belson, *"Matching and Prediction on the Principle of Biological Classification"*, 1959), précurseur des méthodes AID/CHAID, construit au contraire les classes en utilisant directement le défaut observé comme critère de coupure — ce qui améliore mécaniquement la séparation des classes, au prix d'un risque de sur-apprentissage à surveiller (section 12).
+L'algorithme de Belson (D.J. Belson, *"Matching and Prediction on the Principle of Biological Classification"*, 1959), précurseur des méthodes AID/CHAID, construit au contraire les classes en utilisant directement le défaut observé comme critère de coupure — ce qui améliore mécaniquement la séparation des classes, au prix d'un risque de sur-apprentissage à surveiller (section 12).
 
 ### Algorithme
 
