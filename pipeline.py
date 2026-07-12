@@ -11,16 +11,24 @@ cycle de vie d'un credit :
     2. perimeterDefinition         -> perimetre Retail / PME / Corporate-SME
     3. Tcg                         -> dates d'octroi/defaut, statut a l'arrete, panel LRA
     4. featureEngineering          -> variables de risque connues a l'octroi
-    5. riskClustering              -> classes de risque par DBSCAN + KMeans
-    6. pdCalibration                -> PD Long Run Average (LRA, panel multi-annees)
-    7. marginOfConservatism         -> Marge de Conservatisme (MoC A/B/C)
-    8. lgdEstimation                -> LGD workout (couts + recouvrements)
-    9. eadEstimation                 -> EAD (amortissement + CCF)
-   10. ifrs9Staging                  -> PD PIT, SICR, staging, ECL
-   11. irbCapitalRwa                  -> RWA / capital reglementaire (formule Bale complete)
-   12. stressTesting                   -> scenarios + stress test inverse
-   13. modelValidation                    -> Train/OOT, AUC, Gini, VIF
-   14. reporting                        -> export Excel multi-onglets
+    5. populationSegmentation      -> populations homogenes de capacite economique (DBSCAN + KMeans)
+    6. riskClustering              -> classes de risque par algorithme de Belson, DANS chaque population
+    7. pdCalibration                -> PD Long Run Average (LRA, credibilite de Buhlmann, panel multi-annees)
+    8. marginOfConservatism         -> Marge de Conservatisme (MoC A/B/C)
+    9. lgdEstimation                -> LGD workout (couts + recouvrements)
+   10. eadEstimation                 -> EAD (amortissement + CCF)
+   11. ifrs9Staging                  -> PD PIT, SICR, staging, ECL
+   12. irbCapitalRwa                  -> RWA / capital reglementaire (formule Bale complete)
+   13. stressTesting                   -> scenarios + stress test inverse
+   14. modelValidation                    -> Train/OOT, AUC, Gini, VIF, ANOVA
+   15. reporting                        -> export Excel multi-onglets
+
+La segmentation de risque est desormais construite en DEUX temps distincts
+(etapes 5 et 6, cf. docstrings respectifs) plutot qu'en un seul clustering
+global : d'abord la population (capacite economique), puis le risque
+(algorithme de Belson, supervise par le defaut) A L'INTERIEUR de chaque
+population. Cf. docs/METHODOLOGY.md et docs/METHODOLOGY_SANS_FORMULES.md
+pour la justification complete.
 
 la tracabilite d'execution
 passe par des impressions structurees (print)
@@ -38,6 +46,7 @@ from src import dataIngestion
 from src import perimeterDefinition
 from src import Tcg
 from src import featureEngineering
+from src import populationSegmentation
 from src import riskClustering
 from src import pdCalibration
 from src import marginOfConservatism
@@ -54,7 +63,7 @@ def runFullPipeline():
     print("$" * 15)
     print("PROJET RISQUE DE CREDIT - IRB-A / IFRS9 / CRR2-CRR3")
     print("Auteur : Rodrigue KOFFI")
-   
+
 
     config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     config.DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
@@ -63,9 +72,10 @@ def runFullPipeline():
     portfolioFrame = perimeterDefinition.runPerimeterDefinition(portfolioFrame)
     portfolioFrame, performancePanel = Tcg.runTemporalChronologyGeneration(portfolioFrame)
     portfolioFrame = featureEngineering.runFeatureEngineering(portfolioFrame)
-    portfolioFrame = riskClustering.runRiskClustering(portfolioFrame)
-    portfolioFrame, annualTable, lraByGrade = pdCalibration.runPdCalibration(portfolioFrame, performancePanel)
-    portfolioFrame = marginOfConservatism.runMarginOfConservatism(portfolioFrame, annualTable, lraByGrade)
+    portfolioFrame = populationSegmentation.runPopulationSegmentation(portfolioFrame)
+    portfolioFrame, anovaTable, belsonTreeSummary = riskClustering.runRiskClustering(portfolioFrame)
+    portfolioFrame, annualTable, lraByCell = pdCalibration.runPdCalibration(portfolioFrame, performancePanel)
+    portfolioFrame = marginOfConservatism.runMarginOfConservatism(portfolioFrame, annualTable, lraByCell)
     portfolioFrame = lgdEstimation.runLgdEstimation(portfolioFrame)
     portfolioFrame = eadEstimation.runEadEstimation(portfolioFrame)
     portfolioFrame = ifrs9Staging.runIfrs9Staging(portfolioFrame)
@@ -81,7 +91,7 @@ def runFullPipeline():
 
     reporting.runReporting(
         portfolioFrame, annualTable, performancePanel, stressDf, reverseStressResult,
-        discriminationResults, vifTable,
+        discriminationResults, vifTable, anovaTable, belsonTreeSummary,
     )
 
     print("\n" + "$" * 15)

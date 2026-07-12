@@ -19,18 +19,20 @@ IRB_IFRS9_Project/
 │   ├── perimeterDefinition.py              # étape 2 : périmètre Retail / PME / Corporate-SME
 │   ├── Tcg.py                              # étape 3 : dates octroi/défaut, panel d'observations LRA
 │   ├── featureEngineering.py               # étape 4 : variables de risque à l'octroi
-│   ├── riskClustering.py                   # étape 5 : DBSCAN + KMeans -> grades de risque
-│   ├── pdCalibration.py                    # étape 6 : PD Long Run Average (panel multi-années)
-│   ├── marginOfConservatism.py             # étape 7 : MoC A / B / C
-│   ├── lgdEstimation.py                    # étape 8 : LGD workout (coûts + recouvrements)
-│   ├── eadEstimation.py                    # étape 9 : EAD + CCF
-│   ├── ifrs9Staging.py                     # étape 10 : PD PIT, SICR, staging, ECL
-│   ├── irbCapitalRwa.py                    # étape 11 : RWA/capital (formule Bâle complète)
-│   ├── stressTesting.py                    # étape 12 : scénarios de stress + stress test inverse
-│   ├── modelValidation.py                  # étape 13 : Train/OOT, AUC, Gini, VIF
-│   └── reporting.py                        # étape 14 : export Excel multi-onglets
+│   ├── populationSegmentation.py           # étape 5 : DBSCAN + KMeans -> populations homogènes (capacité économique)
+│   ├── riskClustering.py                   # étape 6 : algorithme de Belson + ANOVA -> grades de risque, DANS chaque population
+│   ├── pdCalibration.py                    # étape 7 : PD Long Run Average (crédibilité de Bühlmann, panel multi-années)
+│   ├── marginOfConservatism.py             # étape 8 : MoC A / B / C
+│   ├── lgdEstimation.py                    # étape 9 : LGD workout (coûts + recouvrements)
+│   ├── eadEstimation.py                    # étape 10 : EAD + CCF
+│   ├── ifrs9Staging.py                     # étape 11 : PD PIT, SICR, staging, ECL
+│   ├── irbCapitalRwa.py                    # étape 12 : RWA/capital (formule Bâle complète)
+│   ├── stressTesting.py                    # étape 13 : scénarios de stress + stress test inverse
+│   ├── modelValidation.py                  # étape 14 : Train/OOT, AUC, Gini, VIF, ANOVA
+│   └── reporting.py                        # étape 15 : export Excel multi-onglets
 ├── docs/
-│   └── METHODOLOGY.md                      # formules, justifications, articles CRR/CRD/EBA
+│   ├── METHODOLOGY.md                      # formules, justifications, articles CRR/CRD/EBA
+│   └── METHODOLOGY_SANS_FORMULES.md        # même méthodologie, sans formule, pour un lecteur non technique
 ├── sourcesGuidelines/                      # Guidelines EBA officielles citées (PD/LGD, downturn LGD, défaut, stress testing)
 ├── PresentationPDF/                        # support de présentation du projet (PDF)
 ├── output/                                 # classeur Excel de sortie
@@ -45,11 +47,12 @@ pip install -r requirements.txt
 python pipeline.py
 ```
 
-Le classeur `output/Credit_Risk_IRB_IFRS9_sortie.xlsx` est généré avec les onglets : données obligors, synthèse par grade, décomposition MoC, synthèse staging IFRS 9, synthèse par périmètre, série annuelle de défaut (LRA), panel brut d'observations LRA, résultats des tests de stress par scénario, résultat du stress test inverse, validation AUC/Gini Train/OOT, VIF des variables de segmentation.
+Le classeur `output/Credit_Risk_IRB_IFRS9_sortie.xlsx` est généré avec les onglets : données obligors, synthèse par grade (population x grade), synthèse par population, décomposition MoC, synthèse staging IFRS 9, synthèse par périmètre, série annuelle de défaut (LRA), panel brut d'observations LRA, résultats des tests de stress par scénario, résultat du stress test inverse, validation AUC/Gini Train/OOT, VIF des variables de segmentation, validation ANOVA (homogénéité intra/inter-classe), arbre de Belson (traçabilité des règles de segmentation).
 
 ## Conventions du projet
 
-- Le détail méthodologique complet (formules, articles réglementaires, limites assumées) est dans `docs/METHODOLOGY.md`.
+- Le détail méthodologique complet (formules, articles réglementaires, limites assumées) est dans `docs/METHODOLOGY.md` (version avec formules) et `docs/METHODOLOGY_SANS_FORMULES.md` (version pédagogique, sans formule).
+- La segmentation du risque se fait en deux temps : `populationSegmentation.py` (étape 5, DBSCAN + KMeans sur la capacité économique : revenu, qualification, ratios d'endettement) puis `riskClustering.py` (étape 6, algorithme de Belson + validation ANOVA, appliqué séparément à l'intérieur de chaque population). Deux obligors de capacité économique très différente ne sont jamais notés par le même modèle de PD (Art. 170 CRR).
 
 ## Warnings
 

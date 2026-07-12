@@ -1,7 +1,7 @@
 """
 reporting.py
 =============
-Etape 14 : export des resultats vers un classeur Excel multi-onglets,
+Etape 15 : export des resultats vers un classeur Excel multi-onglets,
 exploitable directement en Power BI / revue de comite des modeles.
 """
 
@@ -13,7 +13,8 @@ EXPORT_COLUMNS = [
     "bookStatusAsOfObservationDate", "monthsOnBookAtObservation",
     "age", "sex", "jobSkillLevel", "housingType", "purpose", "creditAmount", "durationMonths",
     "monthlyIncomeEur", "smeAnnualTurnoverEur",
-    "riskGradeClass", "clusterIdRaw",
+    "populationSegment", "populationClusterIdRaw",
+    "riskGradeClass",
     "pdLongRunAverageGrade", "mocCategoryA", "mocCategoryB", "mocCategoryC", "pdFinalRegulatory",
     "pdOriginationGrade", "pdCurrentPit", "pdLifetime",
     "lgdRealized", "lgdDownturnEstimate",
@@ -26,13 +27,30 @@ EXPORT_COLUMNS = [
 
 
 def buildGradeSummary(portfolioFrame):
+    """Synthese par (populationSegment x riskGradeClass) - la cellule est
+    desormais l'unite de notation, cf. pdCalibration.py."""
     return (
-        portfolioFrame.groupby("riskGradeClass")
+        portfolioFrame.groupby(["populationSegment", "riskGradeClass"])
         .agg(
             effectif=("obligorId", "count"),
             pdLongRunAverage=("pdLongRunAverageGrade", "mean"),
             pdFinaleReglementaire=("pdFinalRegulatory", "mean"),
             lgdDownturnMoyenne=("lgdDownturnEstimate", "mean"),
+            eadTotale=("eadFinal", "sum"),
+            rwaTotal=("riskWeightedAssets", "sum"),
+        )
+        .reset_index()
+    )
+
+
+def buildPopulationSummary(portfolioFrame):
+    return (
+        portfolioFrame.groupby("populationSegment")
+        .agg(
+            effectif=("obligorId", "count"),
+            revenuMensuelMoyen=("monthlyIncomeEur", "mean"),
+            qualificationMoyenne=("jobSkillLevel", "mean"),
+            pdFinaleReglementaireMoyenne=("pdFinalRegulatory", "mean"),
             eadTotale=("eadFinal", "sum"),
             rwaTotal=("riskWeightedAssets", "sum"),
         )
@@ -55,7 +73,7 @@ def buildStagingSummary(portfolioFrame):
 
 def buildMocDecomposition(portfolioFrame):
     return (
-        portfolioFrame.groupby("riskGradeClass")
+        portfolioFrame.groupby(["populationSegment", "riskGradeClass"])
         .agg(
             pdLongRunAverage=("pdLongRunAverageGrade", "mean"),
             mocCategorieA=("mocCategoryA", "mean"),
@@ -89,7 +107,7 @@ def buildReverseStressSummary(reverseStressResult):
 
 
 def exportToExcel(portfolioFrame, annualTable, performancePanel, stressDf, reverseStressResult,
-                   discriminationResults=None, vifTable=None,
+                   discriminationResults=None, vifTable=None, anovaTable=None, belsonTreeSummary=None,
                    fileName="Credit_Risk_IRB_IFRS9_sortie.xlsx"):
     outputPath = config.OUTPUT_DIR / fileName
     availableColumns = [c for c in EXPORT_COLUMNS if c in portfolioFrame.columns]
@@ -97,6 +115,7 @@ def exportToExcel(portfolioFrame, annualTable, performancePanel, stressDf, rever
     with pd.ExcelWriter(outputPath, engine="openpyxl") as writer:
         portfolioFrame[availableColumns].to_excel(writer, sheet_name="DonneesObligors", index=False)
         buildGradeSummary(portfolioFrame).to_excel(writer, sheet_name="SyntheseParGrade", index=False)
+        buildPopulationSummary(portfolioFrame).to_excel(writer, sheet_name="SyntheseParPopulation", index=False)
         buildMocDecomposition(portfolioFrame).to_excel(writer, sheet_name="DecompositionMoC", index=False)
         buildStagingSummary(portfolioFrame).to_excel(writer, sheet_name="SyntheseStagingIFRS9", index=False)
         buildPerimeterSummary(portfolioFrame).to_excel(writer, sheet_name="SyntheseParPerimetre", index=False)
@@ -108,19 +127,23 @@ def exportToExcel(portfolioFrame, annualTable, performancePanel, stressDf, rever
             discriminationResults.to_excel(writer, sheet_name="ValidationAucGiniTrainOot", index=False)
         if vifTable is not None:
             vifTable.to_excel(writer, sheet_name="ValidationVIF", index=False)
+        if anovaTable is not None:
+            anovaTable.to_excel(writer, sheet_name="ValidationANOVA", index=False)
+        if belsonTreeSummary is not None:
+            belsonTreeSummary.to_excel(writer, sheet_name="ArbreDeBelson", index=False)
 
     print(f"[reporting] Classeur Excel genere : {outputPath}")
     return outputPath
 
 
 def runReporting(portfolioFrame, annualTable, performancePanel, stressDf, reverseStressResult,
-                  discriminationResults=None, vifTable=None):
+                  discriminationResults=None, vifTable=None, anovaTable=None, belsonTreeSummary=None):
     print("=" * 80)
-    print("ETAPE 14 - EXPORT DES RESULTATS (EXCEL MULTI-ONGLETS)")
+    print("ETAPE 15 - EXPORT DES RESULTATS (EXCEL MULTI-ONGLETS)")
     print("=" * 80)
     return exportToExcel(
         portfolioFrame, annualTable, performancePanel, stressDf, reverseStressResult,
-        discriminationResults, vifTable,
+        discriminationResults, vifTable, anovaTable, belsonTreeSummary,
     )
 
 
@@ -129,6 +152,7 @@ if __name__ == "__main__":
     from src.perimeterDefinition import runPerimeterDefinition
     from src.Tcg import runTemporalChronologyGeneration
     from src.featureEngineering import runFeatureEngineering
+    from src.populationSegmentation import runPopulationSegmentation
     from src.riskClustering import runRiskClustering
     from src.pdCalibration import runPdCalibration
     from src.marginOfConservatism import runMarginOfConservatism
@@ -142,9 +166,10 @@ if __name__ == "__main__":
     portfolioFrame = runPerimeterDefinition(portfolioFrame)
     portfolioFrame, performancePanel = runTemporalChronologyGeneration(portfolioFrame)
     portfolioFrame = runFeatureEngineering(portfolioFrame)
-    portfolioFrame = runRiskClustering(portfolioFrame)
-    portfolioFrame, annualTable, lraByGrade = runPdCalibration(portfolioFrame, performancePanel)
-    portfolioFrame = runMarginOfConservatism(portfolioFrame, annualTable, lraByGrade)
+    portfolioFrame = runPopulationSegmentation(portfolioFrame)
+    portfolioFrame, anovaTable, belsonTreeSummary = runRiskClustering(portfolioFrame)
+    portfolioFrame, annualTable, lraByCell = runPdCalibration(portfolioFrame, performancePanel)
+    portfolioFrame = runMarginOfConservatism(portfolioFrame, annualTable, lraByCell)
     portfolioFrame = runLgdEstimation(portfolioFrame)
     portfolioFrame = runEadEstimation(portfolioFrame)
     portfolioFrame = runIfrs9Staging(portfolioFrame)
@@ -154,7 +179,7 @@ if __name__ == "__main__":
     config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     outputPath = runReporting(
         portfolioFrame, annualTable, performancePanel, stressDf, reverseResult,
-        discriminationResults, vifTable,
+        discriminationResults, vifTable, anovaTable, belsonTreeSummary,
     )
     print("\n[VERIFICATION] reporting.py OK")
     print(f"Fichier genere : {outputPath}")

@@ -34,9 +34,37 @@ SME_TARGET_SHARE = 0.14
 
 N_RISK_GRADES = 5
 RISK_GRADE_LABELS_ORDERED = ["veryLow", "low", "medium", "high", "veryHigh"]
-DBSCAN_EPS = 2.2
-DBSCAN_MIN_SAMPLES = 15
 KMEANS_N_INIT = 20
+
+# ------------------------------------------------------------------
+# Etape 5 - Segmentation de la POPULATION (populationSegmentation.py)
+# DBSCAN + KMeans, sur des variables de capacite economique (revenu,
+# qualification, ratios d'endettement) : deux obligors avec des revenus tres
+# eloignes n'appartiennent pas au meme univers statistique et ne doivent pas
+# etre notes par le meme modele de PD (cf. Art. 170 CRR : homogeneite intra-
+# classe). Cette segmentation est faite AVANT la notation de risque
+# (etape 6) et lui sert de facteur de stratification.
+# ------------------------------------------------------------------
+N_POPULATION_SEGMENTS = 3
+POPULATION_SEGMENT_LABELS_ORDERED = ["populationModeste", "populationIntermediaire", "populationAisee"]
+POPULATION_DBSCAN_EPS = 1.5
+POPULATION_DBSCAN_MIN_SAMPLES = 15
+POPULATION_KMEANS_N_INIT = 20
+
+# ------------------------------------------------------------------
+# Etape 6 - Classes de RISQUE (riskClustering.py) : algorithme de Belson
+# (segmentation binaire recursive supervisee par le defaut, precurseur du
+# CHAID) applique SEPAREMENT a l'interieur de chaque populationSegment, puis
+# fusion des feuilles en N_RISK_GRADES classes ordonnees. Homogeneite
+# intra-classe / heterogeneite inter-classe verifiee ensuite par ANOVA
+# (Art. 170 CRR).
+# ------------------------------------------------------------------
+BELSON_MIN_LEAF_SIZE = 25
+BELSON_MAX_DEPTH = 3
+BELSON_CHI2_PVALUE_THRESHOLD = 0.05
+BELSON_MAX_CANDIDATE_THRESHOLDS = 8  # quantiles testes par variable continue a chaque noeud
+
+ANOVA_SIGNIFICANCE_LEVEL = 0.05
 
 MOC_A_CONFIDENCE_LEVEL = 0.95
 MOC_B_FLAT_ADDON = 0.0015
@@ -72,3 +100,18 @@ REVERSE_STRESS_SHOCK_SEARCH_MAX = 20.0  # borne haute de recherche (choc chomage
 # pour le test de stabilite du pouvoir discriminant. Les annees strictement
 # anterieures forment l'echantillon "train" (in-sample).
 OOT_START_YEAR = 2022
+
+# ------------------------------------------------------------------
+# Etape 7 - Credibilite actuarielle appliquee a la LRA (pdCalibration.py)
+# La stratification (population x grade x annee) cree des cellules parfois
+# tres peu peuplees (ex. quelques observations seulement pour un grade au
+# sein d'une petite population) : une seule annee de malchance suffirait
+# alors a driver toute la PD LRA de la cellule. LRA_CREDIBILITY_K est le
+# nombre d'observations annuelles auquel la donnee propre a la cellule et le
+# taux de defaut moyen de la population (le "prior") pesent a parts egales
+# (facteur de credibilite Z = n / (n + K), theorie de la credibilite de
+# Buhlmann, technique actuarielle standard) - PLUS n est petit, PLUS la
+# cellule est ramenee vers le prior de sa population avant tout controle de
+# monotonie.
+# ------------------------------------------------------------------
+LRA_CREDIBILITY_K = 30

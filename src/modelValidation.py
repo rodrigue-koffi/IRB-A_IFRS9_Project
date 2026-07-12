@@ -8,29 +8,39 @@ de segmentation (VIF).
 
 Contexte
 --------
-Le classement de risque (riskGradeClass, cf. riskClustering.py) est produit par
-un clustering non supervise (DBSCAN + KMeans), pas par une regression logistique
-notant chaque dossier avec un score continu. Cela ne dispense pas de valider son
-pouvoir discriminant : EBA/GL/2017/16 (Titre III, section sur la validation)
-demande explicitement de verifier que l'ordre des classes de risque ("rank
-ordering") separe correctement les bons et mauvais payeurs, quelle que soit la
-methode d'affectation des classes.
+Le classement de risque (riskGradeClass, cf. riskClustering.py) est desormais
+construit EN DEUX TEMPS : une segmentation de POPULATION non supervisee
+(DBSCAN + KMeans, populationSegmentation.py, etape 5) puis, a l'interieur de
+chaque population, une segmentation de RISQUE supervisee par le defaut
+(algorithme de Belson, riskClustering.py, etape 6). Une consequence directe :
+le meme LIBELLE de grade (ex. "veryLow") ne porte pas necessairement le meme
+niveau de PD selon la population a laquelle il appartient (cf.
+pdCalibration.py). Le rang utilise pour l'AUC/Gini ne peut donc plus etre le
+simple rang du libelle (0=veryLow ... 4=veryHigh) : il doit refleter le
+niveau REEL de PD finale calibree (pdFinalRegulatory) de la cellule
+(population, grade) a laquelle appartient chaque obligor. C'est ce rang,
+et non plus le rang du seul libelle, qui est utilise ci-dessous comme score
+pour l'AUC/Gini.
 
-Le "score" utilise pour l'AUC/Gini est donc le rang ordinal du grade
-(veryLow=0 ... veryHigh=4, outlierReview=5, traite comme le rang le plus risque
-car il correspond a une population ecartee du clustering principal faute
-d'appartenance claire a un groupe).
+EBA/GL/2017/16 (Titre III, section sur la validation) demande explicitement
+de verifier que l'ordre des classes de risque ("rank ordering") separe
+correctement les bons et mauvais payeurs, quelle que soit la methode
+d'affectation des classes. Le decoupage Train/OOT ci-dessous mesure la
+stabilite de ce rang dans le temps.
 
-Limite assumee et documentee : le classement des clusters par taux de defaut
-(cf. riskClustering.py) utilise deja `defaultEverFlag`, calcule sur l'historique
-complet (train + out-of-time). Le decoupage Train/OOT ci-dessous mesure donc la
-stabilite du pouvoir discriminant du grade dans le temps, pas une validation
-"hors echantillon" au sens strict d'un modele reestime uniquement sur le train.
-Un futur raffinement consisterait a reordonner les grades en utilisant
-uniquement les defauts anterieurs a OOT_START_YEAR.
+Limite assumee et documentee : la construction des classes (riskClustering.py)
+utilise deja `defaultEverFlag`, calcule sur l'historique complet
+(train + out-of-time) - c'est une consequence du caractere SUPERVISE de
+l'algorithme de Belson (cf. docstring de riskClustering.py), plus marquee que
+dans l'ancienne version (KMeans non supervise). Le decoupage Train/OOT
+ci-dessous mesure donc la stabilite du pouvoir discriminant du grade dans le
+temps, pas une validation "hors echantillon" au sens strict d'un modele
+reestime uniquement sur le train. Un futur raffinement consisterait a
+reconstruire l'arbre de Belson en n'utilisant que les defauts anterieurs a
+OOT_START_YEAR.
 
-Aucun module logging : traçabilite par impressions structurees (print), conforme
-a la convention du projet.
+Aucun module logging : tracabilite par impressions structurees (print),
+conforme a la convention du projet.
 """
 
 import numpy as np
@@ -40,16 +50,23 @@ from sklearn.linear_model import LinearRegression
 
 from src import config
 from src.riskClustering import CLUSTERING_FEATURES
-
-GRADE_RANK_MAP = {
-    label: rank for rank, label in enumerate(config.RISK_GRADE_LABELS_ORDERED)
-}
-GRADE_RANK_MAP["outlierReview"] = len(config.RISK_GRADE_LABELS_ORDERED)
+from src.populationSegmentation import POPULATION_SEGMENTATION_FEATURES
 
 
-def buildGradeRankSeries(portfolioFrame):
-    gradeRank = portfolioFrame["riskGradeClass"].map(GRADE_RANK_MAP)
-    return gradeRank
+def buildPdRankSeries(portfolioFrame):
+    """
+    Rang dense de la PD finale reglementaire moyenne de chaque cellule
+    (populationSegment, riskGradeClass), croissant avec le risque. Remplace
+    le rang du seul libelle de grade (insuffisant depuis que le meme
+    libelle peut porter des PD differentes selon la population).
+    """
+    cellMeanPd = (
+        portfolioFrame.groupby(["populationSegment", "riskGradeClass"])["pdFinalRegulatory"]
+        .mean()
+        .rank(method="dense")
+    )
+    lookupKey = list(zip(portfolioFrame["populationSegment"], portfolioFrame["riskGradeClass"]))
+    return pd.Series([cellMeanPd.get(key, np.nan) for key in lookupKey], index=portfolioFrame.index)
 
 
 def splitTrainOot(performancePanel, ootStartYear=config.OOT_START_YEAR):
@@ -63,10 +80,9 @@ def computeDiscriminatoryPower(panelSubset, portfolioFrame, label):
         return {"echantillon": label, "observations": 0, "tauxDefaut": np.nan, "auc": np.nan, "gini": np.nan}
 
     merged = panelSubset.merge(
-        portfolioFrame[["obligorId", "riskGradeClass"]], on="obligorId", how="left"
+        portfolioFrame[["obligorId", "populationSegment", "riskGradeClass", "pdRank"]], on="obligorId", how="left"
     )
-    merged["gradeRank"] = merged["riskGradeClass"].map(GRADE_RANK_MAP)
-    merged = merged.dropna(subset=["gradeRank", "default12mFlag"])
+    merged = merged.dropna(subset=["pdRank", "default12mFlag"])
 
     defaultRate = merged["default12mFlag"].mean()
     nUniqueOutcomes = merged["default12mFlag"].nunique()
@@ -75,7 +91,7 @@ def computeDiscriminatoryPower(panelSubset, portfolioFrame, label):
         auc = np.nan
         gini = np.nan
     else:
-        auc = roc_auc_score(merged["default12mFlag"], merged["gradeRank"])
+        auc = roc_auc_score(merged["default12mFlag"], merged["pdRank"])
         gini = 2 * auc - 1
 
     return {
@@ -87,7 +103,7 @@ def computeDiscriminatoryPower(panelSubset, portfolioFrame, label):
     }
 
 
-def computeVif(portfolioFrame, featureColumns=CLUSTERING_FEATURES):
+def computeVif(portfolioFrame, featureColumns, moduleLabel):
     workingFrame = portfolioFrame[featureColumns].copy()
     workingFrame = workingFrame.apply(pd.to_numeric, errors="coerce")
     workingFrame = workingFrame.fillna(workingFrame.median(numeric_only=True))
@@ -100,13 +116,16 @@ def computeVif(portfolioFrame, featureColumns=CLUSTERING_FEATURES):
         rSquared = regression.score(workingFrame[predictorColumns], workingFrame[targetColumn])
         rSquared = min(rSquared, 0.999999)
         vif = 1.0 / (1.0 - rSquared)
-        vifRecords.append({"variable": targetColumn, "rSquared": rSquared, "vif": vif})
+        vifRecords.append({"module": moduleLabel, "variable": targetColumn, "rSquared": rSquared, "vif": vif})
 
     vifTable = pd.DataFrame(vifRecords).sort_values("vif", ascending=False).reset_index(drop=True)
     return vifTable
 
 
 def runModelValidation(portfolioFrame, performancePanel):
+    portfolioFrame = portfolioFrame.copy()
+    portfolioFrame["pdRank"] = buildPdRankSeries(portfolioFrame)
+
     trainPanel, ootPanel = splitTrainOot(performancePanel)
 
     discriminationResults = pd.DataFrame([
@@ -115,9 +134,12 @@ def runModelValidation(portfolioFrame, performancePanel):
         computeDiscriminatoryPower(ootPanel, portfolioFrame, f"Out-Of-Time (>= {config.OOT_START_YEAR})"),
     ])
 
-    vifTable = computeVif(portfolioFrame)
+    vifTable = pd.concat([
+        computeVif(portfolioFrame, POPULATION_SEGMENTATION_FEATURES, "populationSegmentation (etape 5)"),
+        computeVif(portfolioFrame, CLUSTERING_FEATURES, "riskClustering / Belson (etape 6)"),
+    ], ignore_index=True)
 
-    print("\n[VALIDATION] Pouvoir discriminant (AUC / Gini) par echantillon :")
+    print("\n[VALIDATION] Pouvoir discriminant (AUC / Gini, score = rang de la PD finale par cellule) par echantillon :")
     for _, row in discriminationResults.iterrows():
         if pd.isna(row["auc"]):
             print(f"  - {row['echantillon']:<28} obs={row['observations']:<6} AUC=n/a (classe unique)")
@@ -130,7 +152,7 @@ def runModelValidation(portfolioFrame, performancePanel):
     print("\n[VALIDATION] VIF des variables de segmentation (seuil d'alerte usuel : 5) :")
     for _, row in vifTable.iterrows():
         flag = "  <-- a surveiller" if row["vif"] > 5 else ""
-        print(f"  - {row['variable']:<32} VIF={row['vif']:.2f}{flag}")
+        print(f"  - [{row['module']}] {row['variable']:<32} VIF={row['vif']:.2f}{flag}")
 
     return discriminationResults, vifTable
 
@@ -140,6 +162,7 @@ if __name__ == "__main__":
     from src.perimeterDefinition import runPerimeterDefinition
     from src.Tcg import runTemporalChronologyGeneration
     from src.featureEngineering import runFeatureEngineering
+    from src.populationSegmentation import runPopulationSegmentation
     from src.riskClustering import runRiskClustering
     from src.pdCalibration import runPdCalibration
     from src.marginOfConservatism import runMarginOfConservatism
@@ -152,9 +175,10 @@ if __name__ == "__main__":
     portfolioFrame = runPerimeterDefinition(portfolioFrame)
     portfolioFrame, performancePanel = runTemporalChronologyGeneration(portfolioFrame)
     portfolioFrame = runFeatureEngineering(portfolioFrame)
-    portfolioFrame = runRiskClustering(portfolioFrame)
-    portfolioFrame, annualTable, lraByGrade = runPdCalibration(portfolioFrame, performancePanel)
-    portfolioFrame = runMarginOfConservatism(portfolioFrame, annualTable, lraByGrade)
+    portfolioFrame = runPopulationSegmentation(portfolioFrame)
+    portfolioFrame, anovaTable, belsonTreeSummary = runRiskClustering(portfolioFrame)
+    portfolioFrame, annualTable, lraByCell = runPdCalibration(portfolioFrame, performancePanel)
+    portfolioFrame = runMarginOfConservatism(portfolioFrame, annualTable, lraByCell)
     portfolioFrame = runLgdEstimation(portfolioFrame)
     portfolioFrame = runEadEstimation(portfolioFrame)
     portfolioFrame = runIfrs9Staging(portfolioFrame)
